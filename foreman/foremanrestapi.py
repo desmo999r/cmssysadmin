@@ -28,10 +28,10 @@ class ForemanRestAPI(object):
 
 	def getHostGroupId(self, hostgroupName):
 		response = self.get('hostgroups', hostgroupName)
-		return reponse.json()[u'id']
+		return response.json()[u'id']
 
 
-	def registerNewHost(self, host, mac, groupId, build=True):
+	def registerNewHost(self, host, mac, groupId, build=False):
 		payload = {'host': { 
 				'hostname': host,
 				'mac': mac,
@@ -41,6 +41,9 @@ class ForemanRestAPI(object):
 		}
 		self.post(payload, 'hosts')
 
+	def getHost(self, hostname):
+		response = self.get('hosts', hostname)
+		return response.json()
 
 	def __init__(self, host, user, passwd):
 		self.user = user
