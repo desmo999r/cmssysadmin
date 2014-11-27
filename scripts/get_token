@@ -1,0 +1,24 @@
+#!/usr/bin/env python
+
+from suds.client import Client 
+from suds.sax.element import Element
+from suds.xsd.doctor import ImportDoctor, Import
+import argparse
+from getpass import getpass
+
+parser = argparse.ArgumentParser(description='Authenticate against CERN LanDB and return an authentication token')
+parser.add_argument('-u', dest='user', help='CERN username', required=True)
+parser.add_argument('-type', dest='type', help='Authentication type. Currently NICE is the only supported one', choices=['NICE'], required=True)
+args = parser.parse_args()
+
+passwd = getpass("Enter {0} password: ".format(args.type))
+
+endpoint = "https://network.cern.ch/sc/soap/soap.fcgi?v=5&WSDL"
+
+imp = Import('http://schemas.xmlsoap.org/soap/encoding/')
+d = ImportDoctor(imp)
+client = Client(endpoint, doctor=d, cache=None) 
+
+atoken = client.service.getAuthToken(args.user, passwd, args.type)
+
+print "export LANDB_TOKEN=\"{0}\"".format(atoken)
