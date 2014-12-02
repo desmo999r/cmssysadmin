@@ -1,12 +1,16 @@
 import os
 import socket
+import fcntl
+import struct
 import dmidecode
 import json
 import re
 import logging
 import requests
-from subprocess import Popen, PIPE
+from time import sleep
+from subprocess import Popen, PIPE, call
 from cmssysadmin.landb.landbproxy import LanDBProxy
+from cmssysadmin.foreman import Host
 
 RACKINFOSERVER = 'kvm-s3562-1-ip137-11.cms:8000'
 logger = logging.getLogger(__name__)
@@ -31,6 +35,7 @@ class LocalPC(object):
 	_registered = False
 	_rackInfo = {}
 	_cms_nic = {}
+	_cms_dev = ''
 	_bmc_nic = {}
 	_deviceInput = {}
 	_speedString = { 1000: 'GIGABITETHERNET',
@@ -39,40 +44,16 @@ class LocalPC(object):
 	@property
 	def MACAddress(self):
 		"""Returns the PC first NIC MAC address. Will return BOOTIF MAC address if specified on kernel cmd line or 'em1' or 'eth0' MAC address"""
-		try:
-			with open('/proc/cmdline', 'r') as f:
-				cmdline = f.readline()
-				return re.search('BOOTIF=([a-f0-9-]*)', cmdline).group(1)
-		except Exception:
-			logger.info("Cannot get the MAC from BOOTIF parameter, trying something else")
-
 		return self.CMSNetworkCard['HardwareAddress']
 
 
 	@property
+	def CMSDev(self):
+		return self._cms_dev
+
+	@property
 	def CMSNetworkCard(self):
 		"""Returns dictionary containing information about first NIC that can be used with LanDB SOAP interface."""
-		if self._cms_nic:
-			return self._cms_nic
-
-		try:
-			with open('/sys/class/net/em1/address', 'r') as f:
-				mac = f.readline().strip()
-			with open('/sys/class/net/em1/speed', 'r') as f:
-				speed = int(f.readline().strip())
-		except Exception:
-			logger.warning("No 'em1' interface. Let's try with 'eth0'")
-			try:
-				with open('/sys/class/net/eth0/address', 'r') as f:
-					mac = f.readline().strip()
-				with open('/sys/class/net/eth0/speed', 'r') as f:
-					speed = int(f.readline().strip())
-			except Exception:
-				logger.error("No 'eth0' interface. Giving up...")
-				raise Exception("Cannot get MAC address.")
-
-		self._cms_nic = {'HardwareAddress': mac, 'CardType': self._speedString[speed]}
-		logger.info("CMS NIC: {0}".format(self._cms_nic))
 		return self._cms_nic
 
 	@property
@@ -83,22 +64,6 @@ class LocalPC(object):
 
 	@property
 	def BMCNetworkCard(self):
-		# Getting BMC NIC
-		if self._bmc_nic:
-			return self._bmc_nic
-
-		try:
-			ipmi = Popen(['ipmitool', 'lan', 'print'], stdout=PIPE).communicate()
-			findMac = re.compile('(([a-f0-9]{2}:){5}[a-f0-9]{2})')
-			mac = findMac.search(ipmi[0]).group(0)
-			# We assume the BMC NIC is a GIGABITETHERNET
-			self._bmc_nic = {'HardwareAddress': mac, 'CardType': self._speedString[1000]}
-		except Exception as e:
-			# Something went wrong here. Maybe no BMC?
-			# We log the message and continue.
-			logger.warning("Cannot get BMC information: {0}".format(e))
-
-		logger.info("BMC NIC: {0}".format(self._bmc_nic))
 		return self._bmc_nic
 
 	@property
@@ -130,14 +95,6 @@ class LocalPC(object):
 
 	@property
 	def rackInfo(self):
-		if self._rackInfo:
-			return self._rackInfo
-		swName, swPort = self._landbproxy.connection
-		rackName = self._landbproxy.location
-		headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' }
-		url = 'http://%s/api/racklayout/%s/%d' % (RACKINFOSERVER, rackName, swPort)
-		self._rackInfo = requests.get(url, headers=headers).json()
-
 		return self._rackInfo
 
 	def __init__(self):
@@ -147,12 +104,76 @@ class LocalPC(object):
 		dmixml = dmidecode.dmidecodeXML()
 		dmixml.SetResultType(dmidecode.DMIXML_DOC)
 		self.xp = dmixml.QuerySection('all').xpathNewContext()
-		mac = self.MACAddress
+
+		# Get CMS Card info
+		try:
+			with open('/sys/class/net/em1/address', 'r') as f:
+				mac = f.readline().strip()
+			with open('/sys/class/net/em1/speed', 'r') as f:
+				speed = int(f.readline().strip())
+				self._cms_dev = 'em1'
+		except Exception:
+			logger.warning("No 'em1' interface. Let's try with 'eth0'")
+			try:
+				with open('/sys/class/net/eth0/address', 'r') as f:
+					mac = f.readline().strip()
+				with open('/sys/class/net/eth0/speed', 'r') as f:
+					speed = int(f.readline().strip())
+				self._cms_dev = 'eth0'
+			except Exception:
+				logger.error("No 'eth0' interface. Giving up...")
+				raise Exception("Cannot get MAC address.")
+
+		self._cms_nic = {'HardwareAddress': mac, 'CardType': self._speedString[speed]}
+		logger.info("CMS NIC: {0}".format(self._cms_nic))
+
+		# Get BMC Card info
+		try:
+			ipmi = Popen(['ipmitool', 'lan', 'print'], stdout=PIPE).communicate()
+			findMac = re.compile('(([a-f0-9]{2}:){5}[a-f0-9]{2})')
+			mac = findMac.search(ipmi[0]).group(0)
+			# We assume the BMC NIC is a GIGABITETHERNET
+			self._bmc_nic = {'HardwareAddress': mac, 'CardType': self._speedString[1000]}
+		except Exception as e:
+			# Something went wrong here. Maybe no BMC?
+			# We log the message and continue.
+			logger.warning("Cannot get BMC information: {0}".format(e))
+
+		logger.info("BMC NIC: {0}".format(self._bmc_nic))
+
+		# Create the LanDB proxy which gets information form LanDB service
+		mac = self._cms_nic['HardwareAddress']
 		if 'atoken' in globals():
 			self._landbproxy = LanDBProxy(mac, atoken=atoken)
 		else:
 			self._landbproxy = LanDBProxy(mac)
 	
+		swName, swPort = self._landbproxy.connection
+		rackName = self._landbproxy.location
+		headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' }
+		url = 'http://%s/api/racklayout/%s/%d' % (RACKINFOSERVER, rackName, swPort)
+		self._rackInfo = requests.get(url, headers=headers).json()
+		self._fqdn = '%s--cms.cern.ch.' % self._rackInfo['machine_name']
+		self._shortname = self._rackInfo['machine_name']
+
+	@property
+	def FQDN(self):
+		return self._fqdn
+
+	@property
+	def shortName(self):
+		return self._shortname
+
+	@property
+	def finalIP(self):
+		try:
+			ip = socket.gethostbyname(self.FQDN)
+			logger.info("%s => %s", self.FQDN, ip)
+			return ip
+		except socket.gaierror:
+			logger.info("No IP associated to %s", self.FQDN)
+			return ''
+
 	@property
 	def isVirtual(self):
 		if self.get_SystemInfo_ProductName() == 'KVM':
@@ -206,19 +227,37 @@ class LocalPC(object):
 #		self.landbproxy.registerInterface(pc['DeviceName'], self.getCMSBulkInterface())
 #		self.landbproxy.registerInterface(pc['DeviceName'], self.getBMCBulkInterface())
 
+	def registerForeman(self):
+		logger.info("About to register machine %s in Foreman", self.shortName)
+		self._foremanHost = Host.register(self)
+		logger.info("Foreman registration is done")
+
+	def waitForFinalIP(self):
+		logger.info('Starting to wait for our final IP')
+		while True:
+			# We may have 2 dhclients running on the system but
+			# that doesn't matter very much as long as we renew the 
+			# main NIC IP.
+			dhclient = Popen(['/sbin/dhclient', '-d' , self.CMSDev])
+			sleep(60)
+			if self.finalIP == get_ip_address(self.CMSDev):
+				logger.info("We got our final IP")
+				dhclient.kill()
+				break
+			else:
+				dhclient.kill()
+				call(['rm', '-f', '/var/lib/dhclient/*'])
+
 	def __str__(self):
 		if self._registered:
 			# Looks like we are now registered in LanDB
 			msg = """
 Machine is registered in IT LanDB.
 
-Add the following line to 'assignments.csv':
+Add the following line to 'assignments.csv' and 'location.csv':
 
-%s
-
-and this one to 'locations.csv':
-
-%s
+echo '%s' > assignments.csv
+echo '%s' > locations.csv
 
 """
 			assignments = "%s,%s" % (self.rackInfo['machine_name'], self.get_SystemInfo_SerialNumber())
