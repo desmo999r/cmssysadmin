@@ -39,22 +39,9 @@ class LanDBProxy(object):
 		self._swPort = int(conn[0].SwitchPort[0])
 		logger.debug("Switch port %s", self._swPort)
 
-		# Get service name
-#		logger.info("Getting service name from LanDB")
-#		switchInfo = self.client.service.getSwitchInfo(self.switchName)
-#		for i in switchInfo:
-#			if int(i['Name']) == self.switchPort:
-#				self.serviceName = i.ServiceName
-#				break
-#		logger.debug("Service name %s", self.serviceName)
-
 		# Get switchInfo
 		logger.info("Getting switch info from LanDB")
 		self._swInfo = self._client.service.getDeviceBasicInfo(self._swName)
-
-		# Get serviceInfo
-#		logger.info("Getting service info from LanDB")
-#		self.serviceInfo = self.client.service.getServiceInfo(self.serviceName)
 
 	@property
 	def connection(self):
@@ -64,20 +51,10 @@ class LanDBProxy(object):
 	def swInfo(self):
 		return self._swInfo
 
-#	def getServiceInfo(self):
-#		return self.serviceInfo
-
-#	def getServiceName(self):
-#		return self.serviceName
-
 	@property
 	def location(self):
-#		m = re.search(r'(s1|s2|c2|b1|e1)[a-x][0-9]{2}', self.serviceInfo.Description, re.IGNORECASE)
-#		if m:
-#			return m.group().lower()
-#		else:
-#			return None
 		return self.swInfo['Zone'].lower()
+
 
 	def registerPC(self, pc):
 		self._client.service.deviceInsert(pc)
@@ -89,5 +66,10 @@ class LanDBProxy(object):
 		self._client.service.deviceAddBulkInterface(pcName, interface)
 
 	def autoRegister(self, pc, cards, interfaces):
-		return self._client.service.bulkInsertAuto(pc, cards, interfaces)
+		try:
+			self._client.service.getDeviceBasicInfo(pc['DeviceName'])
+			logger.info("Device already registered")
+			return True
+		except WebFault, e:
+			return self._client.service.bulkInsertAuto(pc, cards, interfaces)
 # vim: set ts=2 sw=2 tw=0 noet :
