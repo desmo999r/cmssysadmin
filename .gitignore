@@ -1,2 +1,5 @@
 # Compiled source
 *.pyc
+build/*
+dist/*
+*.egg-info/
