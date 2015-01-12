@@ -5,13 +5,17 @@ import json
 import re
 import logging
 import requests
+import ConfigParser
 from time import sleep
 from subprocess import Popen, PIPE, call
 from cmssysadmin.landb.landbproxy import LanDBProxy
 from cmssysadmin.foreman import Host
 from cmssysadmin import get_bootif, get_ip_address
 
-RACKINFOSERVER = 'kvm-s3562-1-ip137-11.cms:8000'
+config = ConfigParser.ConfigParser()
+config.read('/etc/cmssysadmin.conf')
+RACKINFOSERVER = config.get('cmssysadmin', 'rackinfo_server')
+
 logger = logging.getLogger(__name__)
 try: 
 	atoken = os.environ['LANDB_TOKEN']

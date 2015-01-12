@@ -1,11 +1,17 @@
 #from cmssysadmin.landb.localpc import LocalPC
 import logging
+import ConfigParser
 from cmssysadmin.foreman.foremanrestapi import ForemanRestAPI, NotFound
 
+config=ConfigParser.ConfigParser()
+config.read('/etc/cmssysadmin.conf')
 logger = logging.getLogger(__name__)
-FOREMAN_HOST="kvm-s3562-1-ip137-13.cms"
-FOREMAN_USER="autoregister"
-FOREMAN_PASSWD="lss5install"
+FOREMAN_HOST=config.get('cmssysadmin', 'foreman_host')
+#FOREMAN_HOST="kvm-s3562-1-ip137-13.cms"
+#FOREMAN_USER="autoregister"
+FOREMAN_USER=config.get('cmssysadmin', 'foreman_user')
+#FOREMAN_PASSWD="lss5install"
+FOREMAN_PASSWD=config.get('cmssysadmin', 'foreman_passwd')
 
 class Host(ForemanRestAPI):
 	_data = {}

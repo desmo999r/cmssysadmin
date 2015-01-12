@@ -5,6 +5,7 @@ import time
 import sys
 import logging
 import logging.handlers
+import ConfigParser
 from cmssysadmin.localpc import LocalPC
 from cmssysadmin import get_ip_address, get_bootif
 
@@ -16,9 +17,12 @@ class MailHandler(logging.handlers.SMTPHandler):
 		ip = get_ip_address(nic)
 		return '[Autoregistration] %s from %s' % (record.levelname, ip)
 
+config = ConfigParser.ConfigParser()
+config.read('/etc/cmssysadmin.conf')
+email = config.get('cmssysadmin', 'report_email')
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-smtpHandler = MailHandler(mailhost='localhost', fromaddr='cmsautoregistration@cern.ch', toaddrs='jm.andre@cern.ch', subject='Log from autoregistration script')
+smtpHandler = MailHandler(mailhost='localhost', fromaddr='cmsautoregistration@cern.ch', toaddrs=email, subject='Log from autoregistration script')
 smtpHandler.setLevel(logging.INFO)
 logger.addHandler(smtpHandler)
 

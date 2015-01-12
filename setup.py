@@ -5,6 +5,7 @@ from setuptools import setup,find_packages
 
 setup(
         name='python-cmssysadmin',
+        data_files=[('/etc', ['cmssysadmin/cmssysadmin.conf'])],
         scripts=['scripts/autoregister', 'scripts/get_token'],
         version='0.3',
         description='CMS Sysadmin python tools',
