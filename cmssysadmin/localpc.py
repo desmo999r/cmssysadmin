@@ -1,7 +1,5 @@
 import os
 import socket
-import fcntl
-import struct
 import dmidecode
 import json
 import re
@@ -11,6 +9,7 @@ from time import sleep
 from subprocess import Popen, PIPE, call
 from cmssysadmin.landb.landbproxy import LanDBProxy
 from cmssysadmin.foreman import Host
+from cmssysadmin import get_bootif, get_ip_address
 
 RACKINFOSERVER = 'kvm-s3562-1-ip137-11.cms:8000'
 logger = logging.getLogger(__name__)
@@ -18,17 +17,6 @@ try:
 	atoken = os.environ['LANDB_TOKEN']
 except KeyError as err:
 	logger.info("LANDB_TOKEN environment variable does not exist.")
-
-def get_ip_address(ifname):
-	"""Returns the NIC current IPv4 address"""
-	s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-	ip = socket.inet_ntoa(fcntl.ioctl(
-		s.fileno(),
-		0x8915,  # SIOCGIFADDR
-		struct.pack('256s', ifname[:15])
-	)[20:24])
-	logger.info("Current IP is %s", ip)
-	return ip
 
 # This code as to be run as root
 class LocalPC(object):
@@ -107,22 +95,13 @@ class LocalPC(object):
 
 		# Get CMS Card info
 		try:
-			with open('/sys/class/net/em1/address', 'r') as f:
-				mac = f.readline().strip()
-			with open('/sys/class/net/em1/speed', 'r') as f:
+			# The CMS interface is the boot interface identified by BOOTIF in /proc/cmdline
+			self._cms_dev, mac = get_bootif()
+			with open('/sys/class/net/' + self._cms_dev + '/speed', 'r') as f:
 				speed = int(f.readline().strip())
-				self._cms_dev = 'em1'
 		except Exception:
-			logger.warning("No 'em1' interface. Let's try with 'eth0'")
-			try:
-				with open('/sys/class/net/eth0/address', 'r') as f:
-					mac = f.readline().strip()
-				with open('/sys/class/net/eth0/speed', 'r') as f:
-					speed = int(f.readline().strip())
-				self._cms_dev = 'eth0'
-			except Exception:
-				logger.error("No 'eth0' interface. Giving up...")
-				raise Exception("Cannot get MAC address.")
+			logger.error("No 'eth0' interface. Giving up...")
+			raise Exception("Cannot get MAC address.")
 
 		self._cms_nic = {'HardwareAddress': mac, 'CardType': self._speedString[speed]}
 		logger.info("CMS NIC: {0}".format(self._cms_nic))

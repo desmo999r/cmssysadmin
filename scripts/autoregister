@@ -5,16 +5,15 @@ import time
 import sys
 import logging
 import logging.handlers
-from cmssysadmin.landb.localpc import LocalPC, get_ip_address
+from cmssysadmin.localpc import LocalPC
+from cmssysadmin import get_ip_address, get_bootif
 
 class MailHandler(logging.handlers.SMTPHandler):
 	def getSubject(self, record):
 		if record.levelno == logging.CRITICAL:
 			return '[Autoregistration] %s is ready to be installed' % record.args[0]
-		try:
-			ip = get_ip_address('em1')
-		except IOError:
-			ip = get_ip_address('eth0')
+		nic, mac = get_bootif()
+		ip = get_ip_address(nic)
 		return '[Autoregistration] %s from %s' % (record.levelname, ip)
 
 logging.basicConfig(level=logging.INFO)
