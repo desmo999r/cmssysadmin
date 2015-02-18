@@ -1,6 +1,7 @@
 import os
 import re
 import logging
+from suds import WebFault
 from suds.client import Client 
 from suds.sax.element import Element
 from suds.xsd.doctor import ImportDoctor, Import
@@ -42,6 +43,7 @@ class LanDBProxy(object):
 		# Get switchInfo
 		logger.info("Getting switch info from LanDB")
 		self._swInfo = self._client.service.getDeviceBasicInfo(self._swName)
+		logger.info("Switch info: {0}".format(self._swInfo))
 
 	@property
 	def connection(self):

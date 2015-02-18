@@ -135,6 +135,7 @@ class LocalPC(object):
 		rackName = self._landbproxy.location
 		headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' }
 		url = 'http://%s/api/racklayout/%s/%d' % (RACKINFOSERVER, rackName, swPort)
+		logger.info("Trying to get racklayout info from: ".format(url))
 		self._rackInfo = requests.get(url, headers=headers).json()
 		self._fqdn = '%s--cms.cern.ch.' % self._rackInfo['machine_name']
 		self._shortname = self._rackInfo['machine_name']
@@ -150,11 +151,11 @@ class LocalPC(object):
 	@property
 	def finalIP(self):
 		try:
-			ip = socket.gethostbyname(self.FQDN)
-			logger.info("%s => %s", self.FQDN, ip)
+			ip = socket.gethostbyname(self.shortName)
+			logger.info("%s => %s", self.shortName, ip)
 			return ip
 		except socket.gaierror:
-			logger.info("No IP associated to %s", self.FQDN)
+			logger.info("No IP associated to %s", self.shortName)
 			return ''
 
 	@property
@@ -218,18 +219,15 @@ class LocalPC(object):
 	def waitForFinalIP(self):
 		logger.info('Starting to wait for our final IP')
 		while True:
-			# We may have 2 dhclients running on the system but
-			# that doesn't matter very much as long as we renew the 
-			# main NIC IP.
+			# Release the previous DHCP lease and clean up everything
+			# before launching a new dhclient
+			call(['/sbin/dhclient', '-r', self.CMSDev])
+			call(['rm', '-f', '/var/lib/dhclient/*'])
 			dhclient = Popen(['/sbin/dhclient', '-d' , self.CMSDev])
 			sleep(60)
 			if self.finalIP == get_ip_address(self.CMSDev):
 				logger.info("We got our final IP")
-				dhclient.kill()
 				break
-			else:
-				dhclient.kill()
-				call(['rm', '-f', '/var/lib/dhclient/*'])
 
 	def __str__(self):
 		if self._registered:
@@ -239,8 +237,11 @@ Machine is registered in IT LanDB.
 
 Add the following line to 'assignments.csv' and 'location.csv':
 
-echo '%s' > assignments.csv
-echo '%s' > locations.csv
+'serial_number.csv' should be a link to a .csv file. Make sure the link exists and points to the right file.
+
+echo '%s' >> assignments.csv
+echo '%s' >> locations.csv
+echo '%s' >> ../serial_number.csv
 
 """
 			assignments = "%s,%s" % (self.rackInfo['machine_name'], self.get_SystemInfo_SerialNumber())
@@ -258,7 +259,8 @@ echo '%s' > locations.csv
 					swName=swInfo['DeviceName'],
 					port=self._landbproxy.connection[1],
 			)
-			return msg % (assignments, locations)
+			serial = "%s,%s" % (self.get_SystemInfo_SerialNumber(), self._cms_nic['HardwareAddress'])
+			return msg % (assignments, locations, serial)
 		else:
 			msg = '''\
 Something went wrong.
