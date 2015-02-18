@@ -151,7 +151,7 @@ class LocalPC(object):
 	@property
 	def finalIP(self):
 		try:
-			ip = socket.gethostbyname(self.shortName)
+			ip = socket.gethostbyname('%s.cms' % self.shortName)
 			logger.info("%s => %s", self.shortName, ip)
 			return ip
 		except socket.gaierror:
