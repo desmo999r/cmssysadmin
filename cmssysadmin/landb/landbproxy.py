@@ -1,6 +1,7 @@
 import os
 import re
 import logging
+from time import sleep
 from suds import WebFault
 from suds.client import Client 
 from suds.sax.element import Element
@@ -30,7 +31,12 @@ class LanDBProxy(object):
 		if ip:
 			conn = self._client.service.getCurrentConnection(ip, [mac])
 		else:
-			conn = self._client.service.getMyCurrentConnection([mac])
+			try:
+				conn = self._client.service.getMyCurrentConnection([mac])
+			except Exception:
+				logger.info("Got an exception. Give it another try.")
+				sleep(20)
+				conn = self._client.service.getMyCurrentConnection([mac])
 		if len(conn) == 0:
 			raise Exception("No connection for %s %s" % (ip, mac)) 
 		elif len(conn) > 1:
@@ -42,7 +48,12 @@ class LanDBProxy(object):
 
 		# Get switchInfo
 		logger.info("Getting switch info from LanDB")
-		self._swInfo = self._client.service.getDeviceBasicInfo(self._swName)
+		try:
+			self._swInfo = self._client.service.getDeviceBasicInfo(self._swName)
+		except Exception:
+			logger.info("Got an exception. Give it another try.")
+			sleep(20)
+			self._swInfo = self._client.service.getDeviceBasicInfo(self._swName)
 		logger.info("Switch info: {0}".format(self._swInfo))
 
 	@property
