@@ -80,8 +80,11 @@ class LanDBProxy(object):
 
 	def autoRegister(self, pc, cards, interfaces):
 		try:
-			self._client.service.getDeviceBasicInfo(pc['DeviceName'])
+			dev = self._client.service.getDeviceBasicInfo(pc['DeviceName'])
 			logger.info("Device already registered")
+			if (dev['SerialNumber'] != pc['SerialNumber']):
+				# Same name but different serial number. We have a problem
+				raise Exception("Same name (%s) but different serial numbers" % pc['DeviceName']) 
 			return True
 		except WebFault, e:
 			return self._client.service.bulkInsertAuto(pc, cards, interfaces)
