@@ -205,11 +205,6 @@ class LocalPC(object):
 				[self.CMSNetworkCard, self.BMCNetworkCard],
 				[self.CMSBulkInterface, self.BMCBulkInterface])
 		logger.info("Registration done: %s", str(self._registered))
-#		self.landbproxy.registerPC()
-#		self.landbproxy.registerCard(pc['DeviceName'], self.getCMSNetworkCard())
-#		self.landbproxy.registerCard(pc['DeviceName'], self.getBMCNetworkCard())
-#		self.landbproxy.registerInterface(pc['DeviceName'], self.getCMSBulkInterface())
-#		self.landbproxy.registerInterface(pc['DeviceName'], self.getBMCBulkInterface())
 
 	def registerForeman(self):
 		logger.info("About to register machine %s in Foreman", self.shortName)
@@ -259,7 +254,7 @@ echo '%s' >> ../serial_number.csv
 					swName=swInfo['DeviceName'],
 					port=self._landbproxy.connection[1],
 			)
-			serial = "%s,%s" % (self.get_SystemInfo_SerialNumber(), self._cms_nic['HardwareAddress'])
+			serial = "%s,%s,,%s" % (self.get_SystemInfo_SerialNumber(), self._cms_nic['HardwareAddress'], self._bmc_nic['HardwareAddress'])
 			return msg % (assignments, locations, serial)
 		else:
 			msg = '''\

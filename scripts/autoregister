@@ -32,6 +32,8 @@ try:
 	pc.register()
 	msg = str(pc)
 	logger.warning(msg)
+	# Give some time to the email to be sent
+	time.sleep(30)
 	# Registration done
 	# Start to wait until we get our new IP
 	pc.waitForFinalIP()
@@ -39,6 +41,9 @@ try:
 	# Time to register in Foreman
 	pc.registerForeman()
 	logger.critical("Machine %s is now registered in Foreman", pc.shortName)
+	# Give some time to the email to be sent
+	time.sleep(30)
+	# Registration done
 except Exception as e:
 	logger.exception(e)
 	sys.exit(1)
