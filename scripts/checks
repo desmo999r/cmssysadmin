@@ -1,0 +1,37 @@
+#!/bin/env python
+import sys
+import argparse
+import logging
+from cmssysadmin.checks import checkRunningKernel
+from cmssysadmin.checks import checkPackage
+
+logging.basicConfig()
+parser = argparse.ArgumentParser(description='Do operating system checks (running kernel, installed packages) and returns appropriate error code.')
+
+parser.add_argument('--kernel', '-k')
+group = parser.add_mutually_exclusive_group()
+group.add_argument('--verbose', '-v', action="store_true")
+group.add_argument('--quiet', '-q', action="store_true")
+parser.add_argument('--package', '-p', action="append")
+args = parser.parse_args()
+
+ret = 0
+if args.verbose:
+    logging.getLogger("cmssysadmin.checks").setLevel(logging.INFO)
+elif args.quiet:
+    logging.getLogger("cmssysadmin.checks").setLevel(logging.CRITICAL)
+if args.kernel:
+    if not checkRunningKernel(args.kernel):
+        ret = ret | 2<<1
+if args.package:
+    for p in args.package:
+        if p.find("=") != -1:
+            name, version = p.split("=")
+            if not checkPackage(name, version):
+                ret = ret | 2<<2
+        else:
+            name, version = p, False
+            if not checkPackage(name, version):
+                ret = ret | 2<<3
+sys.exit(ret)
+# vim: set ts=4 sw=4 tw=0 et :
