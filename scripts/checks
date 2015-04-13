@@ -8,11 +8,11 @@ from cmssysadmin.checks import checkPackage
 logging.basicConfig()
 parser = argparse.ArgumentParser(description='Do operating system checks (running kernel, installed packages) and returns appropriate error code.')
 
-parser.add_argument('--kernel', '-k')
+parser.add_argument('--kernel', '-k', help='Checks the current running kernel version')
 group = parser.add_mutually_exclusive_group()
-group.add_argument('--verbose', '-v', action="store_true")
-group.add_argument('--quiet', '-q', action="store_true")
-parser.add_argument('--package', '-p', action="append")
+group.add_argument('--verbose', '-v', action="store_true", help='Verbose output')
+group.add_argument('--quiet', '-q', action="store_true", help='Quiet. No output message')
+parser.add_argument('--package', '-p', action="append", help='Checks if PACKAGE is installed. Can also check if the right version is installed (-p PACKAGE=VERSION)')
 args = parser.parse_args()
 
 ret = 0
